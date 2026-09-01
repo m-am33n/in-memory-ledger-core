@@ -15,3 +15,15 @@ Timestamps are real, local time.
     (`-AED 370.00`); corrected to `AED -370.00` to match the brief.
 - Tests cover parse/format, precision rejection, add/sub/neg, currency-mismatch
   panic, and interest rounding. All green; `go vet` clean.
+
+## 2026-09-02
+
+- Added the append-only `Ledger`: immutable `Entry` records, `Append` assigns a
+  monotonic `Seq` and never mutates prior entries. `Entries()` returns a copy so
+  callers can't rewrite history.
+- `Entry` carries both `BookedOn` and `ValueDate`. `BalanceAt(day)` sums entries
+  with `ValueDate <= day` — the definition overdraft and interest use, and what
+  makes a back-valued entry (E7) retroactively change an earlier day.
+- Tests: Day-1 sum, back-valued E7 pushing Day 2 to -370 while leaving Day 1
+  untouched, `Entries()` copy immutability, wrong-currency panic. All green.
+- Confirmed Day is modelled as a plain int (1..6); no calendar dates.

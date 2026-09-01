@@ -9,7 +9,7 @@ func TestParseAndString(t *testing.T) {
 		want string
 	}{
 		{AED, "1200.00", "AED 1200.00"},
-		{AED, "950", "AED 950.00"},   // fewer decimals than precision is fine
+		{AED, "950", "AED 950.00"}, // fewer decimals than precision is fine
 		{AED, "-370.00", "AED -370.00"},
 		{BHD, "10.000", "BHD 10.000"},
 		{BHD, "3.334", "BHD 3.334"},
@@ -34,7 +34,6 @@ func TestAddSubNeg(t *testing.T) {
 	b := MustParseMoney(AED, "950.00")
 	c := MustParseMoney(AED, "620.00")
 
-	// 1200 - 950 - 620 = -370, the Day-2 closing balance from the brief.
 	got := a.Sub(b).Sub(c)
 	if got.String() != "AED -370.00" {
 		t.Errorf("1200-950-620 = %s, want AED -370.00", got)
@@ -63,10 +62,10 @@ func TestInterestRounding(t *testing.T) {
 		balance string
 		want    string
 	}{
-		{AED, "250.00", "AED 0.10"},   // 250 * 0.0004 = 0.10 exactly
-		{AED, "625.00", "AED 0.25"},   // 0.25 exactly
-		{AED, "390.00", "AED 0.16"},   // 0.156 -> rounds to 0.16
-		{BHD, "10.000", "BHD 0.004"},  // 0.004 exactly
+		{AED, "250.00", "AED 0.10"},  // 250 * 0.0004 = 0.10 exactly
+		{AED, "625.00", "AED 0.25"},  // 0.25 exactly
+		{AED, "390.00", "AED 0.16"},  // 0.156 -> rounds to 0.16
+		{BHD, "10.000", "BHD 0.004"}, // 0.004 exactly
 	}
 	for _, c := range cases {
 		got := MustParseMoney(c.cur, c.balance).
