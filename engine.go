@@ -1,6 +1,9 @@
 package ledger
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Account configures one account the engine manages.
 type Account struct {
@@ -32,8 +35,23 @@ type Engine struct {
 	ledgers        map[string]*Ledger
 	holds          map[string]*Holds
 	entriesByEvent map[string][]Entry // event id -> entries it produced (for reversal)
+	assessed       map[string]bool    // "account|day" -> overdraft fee already charged
+	interest       []InterestResult
 	log            []Outcome
 }
+
+// InterestResult is the interest capitalized for one account: the single credit
+// booked at end of window, plus the per-day accruals that reconcile to it
+// exactly. Only days with a positive closing balance appear in Daily.
+type InterestResult struct {
+	Account string
+	Daily   map[Day]Money // positive days only; sums to Total
+	Total   Money         // the one capitalized credit
+}
+
+// OverdraftFeeMajor is the flat overdraft fee, in major currency units (the
+// brief specifies AED 25.00). It is charged in the account's own currency.
+const OverdraftFeeMajor = 25
 
 // NewEngine builds an engine for the given accounts. A non-zero opening balance
 // is recorded as an ordinary credit with value date 1.
@@ -42,6 +60,7 @@ func NewEngine(accounts []Account) *Engine {
 		ledgers:        map[string]*Ledger{},
 		holds:          map[string]*Holds{},
 		entriesByEvent: map[string][]Entry{},
+		assessed:       map[string]bool{},
 	}
 	for _, a := range accounts {
 		e.order = append(e.order, a.ID)
@@ -76,9 +95,39 @@ func (e *Engine) Run(events []Event) {
 		for _, ev := range byDay[d] {
 			e.process(ev)
 		}
-		// day-close overdraft assessment goes here (next part)
+		e.dayClose(d)
 	}
-	// end-of-window interest capitalization goes here (later part)
+	e.capitalizeInterest(maxDay)
+}
+
+// dayClose runs after a day's events are booked. For each account it assesses
+// the overdraft fee: a day whose closing balance (entries with value date on or
+// before it) is negative is charged a single flat fee, once ever. Days are
+// scanned in ascending order and each fee is appended before the next day is
+// checked, so a fee's carry-forward is reflected in later days' balances.
+//
+// The scan covers days 1..d, not just day d, because a back-valued entry booked
+// today can push an earlier day negative for the first time (E7, booked day 5,
+// makes day 2 negative). The assessed set is monotonic, so a later reversal
+// (E9) that lifts a day back to positive does not refund an already-charged
+// fee — corrections are append-only, and the overdraft genuinely occurred.
+func (e *Engine) dayClose(d Day) {
+	for _, acc := range e.order {
+		l := e.ledgers[acc]
+		fee := NewMoney(l.currency, OverdraftFeeMajor*l.currency.scale())
+		for k := Day(1); k <= d; k++ {
+			key := fmt.Sprintf("%s|%d", acc, k)
+			if e.assessed[key] || !l.BalanceAt(k).IsNegative() {
+				continue
+			}
+			_, err := l.Append(KindOverdraft, fee.Neg(), d, k,
+				fmt.Sprintf("overdraft fee for day %d", k))
+			if err != nil {
+				continue // currency guard; unreachable for a same-currency fee
+			}
+			e.assessed[key] = true
+		}
+	}
 }
 
 // Ledger returns the ledger for an account, or nil if unknown.
@@ -209,6 +258,84 @@ func (e *Engine) processReversal(ev Event, l *Ledger) {
 		e.entriesByEvent[ev.ID] = append(e.entriesByEvent[ev.ID], rev)
 	}
 	e.record(ev, true, fmt.Sprintf("reversed %s (%d entr%s)", ev.Target, len(origs), plural(len(origs))))
+}
+
+// capitalizeInterest computes daily interest on each account's positive closing
+// balance and books it as a single credit at end of window (the brief's rule).
+//
+// "Final view": each day's closing balance is taken from the finished ledger,
+// so a day restored to positive by a reversal earns interest, while overdraft
+// fees (already in the balance) reduce what it earns. Accruals are computed as
+// exact fractions (balance * 4 / 10000) and never rounded per day in isolation:
+// the capitalized total is the rounded sum of the exact accruals, and that
+// total is then split back across the days by largest remainder so the rounded
+// per-day figures sum to exactly the credit. This is what stops naive per-day
+// rounding from inventing or losing a fil.
+func (e *Engine) capitalizeInterest(lastDay Day) {
+	const den = InterestRateDenominator
+
+	for _, acc := range e.order {
+		l := e.ledgers[acc]
+
+		// Exact accrual per positive day: floor in minor units + a remainder
+		// out of den. totalNum accumulates the exact numerators.
+		type accrual struct {
+			day   Day
+			floor int64
+			rem   int64
+		}
+		var days []accrual
+		var totalNum, floorSum int64
+		for d := Day(1); d <= lastDay; d++ {
+			bal := l.BalanceAt(d)
+			if bal.Sign() <= 0 {
+				continue // only positive balances earn interest
+			}
+			num := bal.Units() * InterestRateNumerator
+			days = append(days, accrual{day: d, floor: num / den, rem: num % den})
+			totalNum += num
+			floorSum += num / den
+		}
+		if len(days) == 0 {
+			continue
+		}
+
+		total := divRoundHalfAwayFromZero(totalNum, den)
+
+		// Largest-remainder allocation: start everyone at their floor, then
+		// hand the leftover minor units to the largest remainders (ties to the
+		// earlier day).
+		alloc := make([]int64, len(days))
+		for i := range days {
+			alloc[i] = days[i].floor
+		}
+		idx := make([]int, len(days))
+		for i := range idx {
+			idx[i] = i
+		}
+		sort.SliceStable(idx, func(a, b int) bool {
+			if days[idx[a]].rem != days[idx[b]].rem {
+				return days[idx[a]].rem > days[idx[b]].rem
+			}
+			return days[idx[a]].day < days[idx[b]].day
+		})
+		for i := int64(0); i < total-floorSum && int(i) < len(idx); i++ {
+			alloc[idx[i]]++
+		}
+
+		daily := make(map[Day]Money, len(days))
+		for i, a := range days {
+			daily[a.day] = NewMoney(l.currency, alloc[i])
+		}
+		credit := NewMoney(l.currency, total)
+		l.Append(KindInterest, credit, lastDay, lastDay, "capitalized daily interest")
+		e.interest = append(e.interest, InterestResult{Account: acc, Daily: daily, Total: credit})
+	}
+}
+
+// Interest returns the per-account interest capitalization results.
+func (e *Engine) Interest() []InterestResult {
+	return append([]InterestResult(nil), e.interest...)
 }
 
 func (e *Engine) record(ev Event, ok bool, detail string) {

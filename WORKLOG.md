@@ -61,3 +61,34 @@ Timestamps are real, local time.
 - Tests: full-stream final balances, auth approve/decline, settlement match vs
   orphan (E6/Auth-Z), reversal is append-only (both -620 and +620 present),
   instalment split sums exact. All green; `go vet` clean.
+- Added the overdraft day-close pass. After each day's events, every account is
+  scanned for days 1..d whose closing balance is negative; each such day is
+  charged one flat 25.00 fee, value-dated to the negative day, booked on the
+  close day. An assessed set makes it once-per-day-per-account and monotonic.
+- The scan covers all days up to d (not just d) so a back-valued entry booked
+  today (E7) is caught on the earlier day it makes negative. Fees are appended
+  in ascending day order, so each fee carries forward into later days' balances.
+- Result: fees on days 2, 4, 5 for ACC-001. E9's day-6 reversal lifts those
+  days back to positive but does NOT refund the fees — the overdraft happened,
+  and corrections are append-only. Final ACC-001 day-6 balance 390.00
+  (465 - 75 in fees). ACC-002 is only credited, so never charged.
+- Note (REJECTED.md): a criterion expecting fees to disappear after the
+  reversal is wrong under append-only accounting; the fees stand.
+- Tests: one fee per negative day at the right value dates, fee amount
+  AED -25.00, ACC-002 fee-free, updated final balances. All green; vet clean.
+- Added the interest capitalization pass (end of window). Confirmed with the
+  user: Final view — each day's closing balance is taken from the finished
+  ledger, so a day restored to positive by the reversal earns interest and
+  overdraft fees (already in the balance) reduce what it earns.
+- Accruals are exact fractions (balance * 4 / 10000), never rounded per day in
+  isolation. The capitalized credit is the *rounded sum of exact accruals*
+  (0.918 -> 0.92), not the sum of per-day rounded accruals (0.93). That single
+  total is then split back across the positive days by largest remainder, so
+  the rounded per-day figures reconcile to the credit exactly.
+- ACC-001: days 1-6 all positive -> 0.10 0.09 0.25 0.17 0.16 0.15 = 0.92, one
+  credit value-dated day 6. ACC-002: positive only on days 5-6 (10.000 each)
+  -> 0.004 + 0.004 = 0.008. Final balances: ACC-001 390.92, ACC-002 10.008.
+- Note (REJECTED.md): naive per-day rounding to 0.93 over-credits by a fil and
+  fails "rounded daily accruals must sum exactly to the capitalized total".
+- Tests: capitalized total is 0.92 not 0.93, daily allocation values, daily sum
+  reconciles to the credit, ACC-002 0.008. All green; `go vet` clean.
