@@ -178,6 +178,32 @@ func (m Money) String() string {
 	return fmt.Sprintf("%s %s%d.%0*d", m.currency.Code, sign, major, m.currency.Decimals, minor)
 }
 
+// AllocateEqual splits an amount into n parts that sum back to exactly the
+// original, distributing the indivisible remainder one minor unit at a time to
+// the later parts. Splitting 10.000 BHD three ways gives 3.333, 3.333, 3.334 —
+// never 3.334 x 3 = 10.002. n must be >= 1.
+func AllocateEqual(m Money, n int) []Money {
+	if n < 1 {
+		panic("AllocateEqual: n must be >= 1")
+	}
+	base := m.units / int64(n)
+	rem := m.units % int64(n)
+	step := int64(1)
+	if rem < 0 { // negative amount: hand out negative units
+		step, rem = -1, -rem
+	}
+	parts := make([]Money, n)
+	for i := range parts {
+		parts[i] = Money{m.currency, base}
+	}
+	// Give the leftover units to the last |rem| parts, so earlier instalments
+	// are the smaller ones.
+	for i := 0; i < int(rem); i++ {
+		parts[n-1-i].units += step
+	}
+	return parts
+}
+
 // divRoundHalfAwayFromZero divides num by den, rounding halves away from zero
 // (so 0.5 -> 1 and -0.5 -> -1). den is assumed positive-or-negative non-zero.
 func divRoundHalfAwayFromZero(num, den int64) int64 {

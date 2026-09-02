@@ -43,3 +43,21 @@ Timestamps are real, local time.
   Kept `Money.Add`/`Sub` panicking on a currency mismatch — that guards against
   our own arithmetic bug (mixing AED and BHD), is unreachable from stream data,
   and returning an error there would clutter every arithmetic call site.
+- Built the event model and engine core. `Event` is one struct for the whole
+  stream (E1..E10); `Stream()` holds the fixed input. The engine dispatches each
+  event, moves money via `Ledger.Append`, reserves funds via `Holds`, and logs
+  one `Outcome` per event (approved/declined/rejected + detail).
+- `Run` processes day by day, grouping events by booking day rather than slice
+  position — E9 is booked day 6 but listed before E10 (day 5). This is also the
+  hook point for the later overdraft day-close and interest passes.
+- Realised overdraft can't be a post-pass over the final entry set: after E9
+  reverses E7, days 2/4/5 are positive again. The fees exist because those days
+  were negative *at the close of day 5* (E7 booked, E9 not yet), and append-only
+  means E9 can't undo them. Hence the day-by-day structure.
+- Two interpretation calls (for AMBIGUITIES.md): the authorization available
+  check uses the ledger balance as of the booking day, so E8/Auth-B is declined
+  on the already-negative day-5 balance (consistent with "never settled");
+  E10 splits 10.000 into 3.333 + 3.333 + 3.334.
+- Tests: full-stream final balances, auth approve/decline, settlement match vs
+  orphan (E6/Auth-Z), reversal is append-only (both -620 and +620 present),
+  instalment split sums exact. All green; `go vet` clean.
