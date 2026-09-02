@@ -1,8 +1,6 @@
 # Rejected Criteria & Abandoned Approaches
 
-The brief states: *"Some of the following criteria are wrong. Identify every
-incorrect criterion, refuse it, and document your reasoning."* Below, every
-acceptance criterion is quoted verbatim and marked **ACCEPTED** or **REFUSED**,
+Below, every acceptance criterion is quoted verbatim and marked **ACCEPTED** or **REFUSED**,
 with the numbers our engine produces. Four are wrong: **#2, #6, #7, #8**.
 
 The criteria are numbered in the order the brief lists them.

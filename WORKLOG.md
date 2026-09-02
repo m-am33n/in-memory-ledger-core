@@ -135,3 +135,7 @@ Timestamps are real, local time.
   refused criterion #2 as an assertion and fails on purpose, printing the three
   real fees (days 2, 4, 5) and the reason. It is the only failing test in the
   suite; its failure message is self-explanatory and points to REJECTED.md.
+- Wrote NUMBERS.md (every constant with justification — why int64 minor units,
+  why 4/10000 not 0.0004, why half-away-from-zero — plus the full worked
+  arithmetic for both accounts) and README.md (how to run, how to read the
+  output, the one-intentional-failure note, and the layered design).
