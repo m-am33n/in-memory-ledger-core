@@ -27,3 +27,13 @@ Timestamps are real, local time.
 - Tests: Day-1 sum, back-valued E7 pushing Day 2 to -370 while leaving Day 1
   untouched, `Entries()` copy immutability, wrong-currency panic. All green.
 - Confirmed Day is modelled as a plain int (1..6); no calendar dates.
+- Added the holds layer: an authorization hold reserves funds but is *not* a
+  ledger entry (no money has moved). Available balance = ledger balance minus
+  active holds — the check an AUTHORIZATION is approved against.
+- `Holds` is deliberately dumb like the ledger: place, get, settle, release,
+  and sum active holds. Whether a hold may be placed or settled is the engine's
+  decision, not this type's. Settling only flips the hold's status; the money
+  movement will be a ledger entry the engine appends.
+- Tests: active hold cuts available (250 - 200 = 50), settle stops reserving
+  and can't run twice, settling an unknown auth (E6 Auth-Z) fails, duplicate
+  auth id panics. All green; `go vet` clean.
