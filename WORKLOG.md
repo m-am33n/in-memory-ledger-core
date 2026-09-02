@@ -121,3 +121,17 @@ Timestamps are real, local time.
   orphan settlement, instalment + interest largest-remainder rounding, simple
   (non-compounding) interest, fee currency, opening balances. Wrong acceptance
   criteria are deferred to REJECTED.md (still to write).
+- Recovered the exact acceptance-criteria wording from the session transcript
+  (the brief was pasted in chat, not saved) so REJECTED.md quotes them verbatim
+  rather than paraphrasing.
+- Wrote REJECTED.md. Accepted #1, #3, #4, #5; refused #2 (E7 causes three fees
+  on days 2/4/5, not one on Day 2), #6 (balances return after E9 but fees do not
+  — append-only), #7 (3.334x3 = 10.002 != 10.000; correct split 3.333/3.333/
+  3.334), #8 (remainder must be allocated, not discarded — contradicts the
+  brief's own reconciliation rule). Also documented the one approach abandoned
+  mid-build: overdraft as a single post-pass over the final entry set, which
+  would find nothing negative after E9 and charge zero fees.
+- Added the required deliberately-failing test (failing_test.go): it encodes the
+  refused criterion #2 as an assertion and fails on purpose, printing the three
+  real fees (days 2, 4, 5) and the reason. It is the only failing test in the
+  suite; its failure message is self-explanatory and points to REJECTED.md.
