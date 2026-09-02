@@ -60,11 +60,12 @@ func (l *Ledger) Account() string { return l.account }
 func (l *Ledger) Currency() Currency { return l.currency }
 
 // Append records a new immutable entry and returns it (with Seq assigned). The
-// amount must be in the ledger's currency.
-func (l *Ledger) Append(kind EntryKind, amount Money, bookedOn, valueDate Day, note string) Entry {
+// amount must be in the ledger's currency; a mismatch returns an error rather
+// than recording a corrupt entry, so the engine can report it and continue.
+func (l *Ledger) Append(kind EntryKind, amount Money, bookedOn, valueDate Day, note string) (Entry, error) {
 	if amount.Currency().Code != l.currency.Code {
-		panic(fmt.Sprintf("account %s is %s but got %s entry",
-			l.account, l.currency.Code, amount.Currency().Code))
+		return Entry{}, fmt.Errorf("account %s is %s but got %s entry",
+			l.account, l.currency.Code, amount.Currency().Code)
 	}
 	e := Entry{
 		Seq:       l.nextSeq,
@@ -77,7 +78,7 @@ func (l *Ledger) Append(kind EntryKind, amount Money, bookedOn, valueDate Day, n
 	}
 	l.entries = append(l.entries, e)
 	l.nextSeq++
-	return e
+	return e, nil
 }
 
 // Entries returns a copy of all entries in append order. A copy is returned so

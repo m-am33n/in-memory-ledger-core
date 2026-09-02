@@ -47,16 +47,17 @@ func NewHolds(currency Currency) *Holds {
 }
 
 // Place records a new active hold. The amount must be in the account's currency
-// and non-negative. A duplicate auth id is a programming error and panics.
-func (h *Holds) Place(authID string, amount Money, placedOn, valueDate Day) *Hold {
+// and non-negative, and the auth id must be unused; any of these returns an
+// error so the engine can record it and carry on rather than crashing.
+func (h *Holds) Place(authID string, amount Money, placedOn, valueDate Day) (*Hold, error) {
 	if amount.Currency().Code != h.currency.Code {
-		panic(fmt.Sprintf("hold currency %s, want %s", amount.Currency().Code, h.currency.Code))
+		return nil, fmt.Errorf("hold currency %s, want %s", amount.Currency().Code, h.currency.Code)
 	}
 	if amount.IsNegative() {
-		panic(fmt.Sprintf("hold amount must be non-negative, got %s", amount))
+		return nil, fmt.Errorf("hold amount must be non-negative, got %s", amount)
 	}
 	if _, exists := h.byID[authID]; exists {
-		panic(fmt.Sprintf("duplicate authorization id %q", authID))
+		return nil, fmt.Errorf("duplicate authorization id %q", authID)
 	}
 	hold := &Hold{
 		AuthID:    authID,
@@ -67,7 +68,7 @@ func (h *Holds) Place(authID string, amount Money, placedOn, valueDate Day) *Hol
 	}
 	h.byID[authID] = hold
 	h.order = append(h.order, authID)
-	return hold
+	return hold, nil
 }
 
 // Get returns the hold with the given auth id, if any.

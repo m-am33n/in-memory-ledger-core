@@ -43,11 +43,10 @@ func TestEntriesReturnsCopy(t *testing.T) {
 	}
 }
 
-func TestWrongCurrencyPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected panic appending BHD to an AED ledger")
-		}
-	}()
-	NewLedger("ACC-001", AED).Append(KindCredit, MustParseMoney(BHD, "1.000"), 1, 1, "x")
+func TestWrongCurrencyErrors(t *testing.T) {
+	_, err := NewLedger("ACC-001", AED).
+		Append(KindCredit, MustParseMoney(BHD, "1.000"), 1, 1, "x")
+	if err == nil {
+		t.Error("expected error appending BHD to an AED ledger, got nil")
+	}
 }

@@ -51,13 +51,12 @@ func TestSettleUnknownHoldFails(t *testing.T) {
 	}
 }
 
-func TestDuplicateAuthPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected panic placing a duplicate auth id")
-		}
-	}()
+func TestDuplicateAuthErrors(t *testing.T) {
 	h := NewHolds(AED)
-	h.Place("Auth-A", aed("200.00"), 2, 2)
-	h.Place("Auth-A", aed("10.00"), 3, 3)
+	if _, err := h.Place("Auth-A", aed("200.00"), 2, 2); err != nil {
+		t.Fatalf("first Place = %v, want nil", err)
+	}
+	if _, err := h.Place("Auth-A", aed("10.00"), 3, 3); err == nil {
+		t.Error("second Place with same auth id = nil error, want error")
+	}
 }

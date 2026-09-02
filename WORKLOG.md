@@ -37,3 +37,9 @@ Timestamps are real, local time.
 - Tests: active hold cuts available (250 - 200 = 50), settle stops reserving
   and can't run twice, settling an unknown auth (E6 Auth-Z) fails, duplicate
   auth id panics. All green; `go vet` clean.
+- Refactored boundary checks from panics to returned errors so the engine can
+  handle bad data gracefully instead of crashing: `Ledger.Append` and
+  `Holds.Place` now return `error` (wrong currency, negative/duplicate hold).
+  Kept `Money.Add`/`Sub` panicking on a currency mismatch — that guards against
+  our own arithmetic bug (mixing AED and BHD), is unreachable from stream data,
+  and returning an error there would clutter every arithmetic call site.
