@@ -99,6 +99,16 @@ func (h *Holds) Release(authID string) bool {
 	return true
 }
 
+// All returns every hold in the order it was placed. Copies are returned so
+// callers cannot mutate hold state.
+func (h *Holds) All() []Hold {
+	out := make([]Hold, 0, len(h.order))
+	for _, id := range h.order {
+		out = append(out, *h.byID[id])
+	}
+	return out
+}
+
 // ActiveTotal sums the amounts of all currently active holds. Available
 // balance is ledger balance minus this total.
 func (h *Holds) ActiveTotal() Money {

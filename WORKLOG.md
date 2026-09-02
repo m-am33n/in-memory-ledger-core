@@ -92,3 +92,32 @@ Timestamps are real, local time.
   fails "rounded daily accruals must sum exactly to the capitalized total".
 - Tests: capitalized total is 0.92 not 0.93, daily allocation values, daily sum
   reconciles to the credit, ACC-002 0.008. All green; `go vet` clean.
+- Built the report printer (`Engine.Report()` returns text, so it's testable)
+  and the `cmd/replay` command that runs the stream and prints it. Per day it
+  shows each account's events + closing balance and the overdraft fees assessed
+  at that close; then sections for errors/rejected events, authorization states
+  (Auth-A settled, Auth-B declined), capitalized interest, and final balances.
+- Per-day closing balance is the operational balance (excludes the day-6
+  interest credit, shown separately) and uses the final restated value, so
+  day 2 reads 225.00 — the day-2 fee is value-dated back to day 2 even though it
+  was booked on day 5. To note in NUMBERS.md.
+- Small fixes: rune-count the section underlines (the em-dash is multi-byte, so
+  len() over-drew the rule); labelled the failures section "Errors & rejected
+  events" since a decline is a valid outcome, not an error like the orphan
+  settlement.
+- Test asserts the report surfaces the key facts (balances, a fee, auth states,
+  the orphan-settlement error, interest total, final balances). Green; vet clean.
+- User spotted that the report's day-5 closing balance read +390 (the restated
+  value, after E9) when as it actually closed it was negative. Correct catch.
+  Changed the per-day line to the as-closed balance (only entries booked on or
+  before the day), so day 5 now reads AED -230.00 — consistent with the fee and
+  the Auth-B decline printed on the same day — with the restated value shown
+  alongside where they differ. Added restatedBalance() for that note.
+- Interest keeps the Final (restated) view per the earlier decision; the split
+  between point-in-time (fees/auth) and restated (interest) is deliberate.
+- Wrote AMBIGUITIES.md documenting all ten interpretation calls: as-closed vs
+  restated report balance, interest Final view, retroactive overdraft + no
+  refund on reversal, auth available-balance basis, settlement-vs-hold amount,
+  orphan settlement, instalment + interest largest-remainder rounding, simple
+  (non-compounding) interest, fee currency, opening balances. Wrong acceptance
+  criteria are deferred to REJECTED.md (still to write).

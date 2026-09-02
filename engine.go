@@ -18,6 +18,8 @@ type Account struct {
 // event is still consumed either way — the stream is append-only.
 type Outcome struct {
 	EventID string
+	Account string
+	Day     Day // the event's booking day
 	Kind    EventKind
 	OK      bool
 	Detail  string
@@ -339,7 +341,14 @@ func (e *Engine) Interest() []InterestResult {
 }
 
 func (e *Engine) record(ev Event, ok bool, detail string) {
-	e.log = append(e.log, Outcome{EventID: ev.ID, Kind: ev.Kind, OK: ok, Detail: detail})
+	e.log = append(e.log, Outcome{
+		EventID: ev.ID,
+		Account: ev.Account,
+		Day:     ev.BookedOn,
+		Kind:    ev.Kind,
+		OK:      ok,
+		Detail:  detail,
+	})
 }
 
 func plural(n int) string {
